@@ -1,0 +1,11 @@
+[package]
+name = "actix-sse-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.9.0"
+actix-web-lab = "0.23.0"
+futures-util = "0.3.31"
+rand = "0.8.5"
+tokio = "1.41.1"
