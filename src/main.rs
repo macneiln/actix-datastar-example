@@ -1,7 +1,7 @@
+use actix_sse_test::datastar_sse::DatastarSSE;
 use actix_web::{
-    http::{header::CACHE_CONTROL, StatusCode},
-    web::{self, Bytes},
-    App, HttpResponse, HttpResponseBuilder, HttpServer, Responder,
+    web::{self},
+    App, HttpResponse, HttpServer, Responder,
 };
 use async_stream::stream;
 use datastar::{prelude::MergeFragments, DatastarEvent};
@@ -33,7 +33,7 @@ async fn index() -> impl Responder {
 }
 
 async fn feed() -> impl Responder {
-    let response_stream = stream! {
+    let event_stream = stream! {
         let mut next_number = rand::rng().random_range(0..1_000_000);
 
         loop {
@@ -44,22 +44,18 @@ async fn feed() -> impl Responder {
             };
 
             let event: DatastarEvent = MergeFragments::new(fragment).into();
-            yield Ok::<_, Infallible>(Bytes::from(event.to_string()));
+            yield Ok::<_, Infallible>(event);
             sleep(Duration::from_millis(100)).await;
             next_number -= 1;
 
         }
     };
 
-    HttpResponseBuilder::new(StatusCode::OK)
-        .content_type("text/event-stream")
-        .keep_alive()
-        .append_header((CACHE_CONTROL, "no-cache"))
-        .streaming(response_stream)
+    DatastarSSE(event_stream)
 }
 
 async fn once() -> impl Responder {
-    let response_stream = stream! {
+    let event_stream = stream! {
         let next_number = rand::rng().random_range(0..1_000_000);
 
             let fragment = html! {
@@ -69,14 +65,10 @@ async fn once() -> impl Responder {
             };
 
             let event: DatastarEvent = MergeFragments::new(fragment).into();
-            yield Ok::<_, Infallible>(Bytes::from(event.to_string()));
+            yield Ok::<_, Infallible>(event);
     };
 
-    HttpResponseBuilder::new(StatusCode::OK)
-        .content_type("text/event-stream")
-        .keep_alive()
-        .append_header((CACHE_CONTROL, "no-cache"))
-        .streaming(response_stream)
+    DatastarSSE(event_stream)
 }
 
 #[actix_web::main]

@@ -9,5 +9,6 @@ async-stream = "0.3.6"
 datastar = { git = "https://github.com/starfederation/datastar.git", version = "0.1.0" }
 futures-util = "0.3.31"
 maud = "0.27.0"
+mime = "0.3.17"
 rand = "0.9.0"
 tokio = "1.43.0"
