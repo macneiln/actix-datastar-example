@@ -4,68 +4,71 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder,
 };
 use async_stream::stream;
-use datastar::{prelude::MergeFragments, DatastarEvent};
+use datastar::prelude::*;
 use maud::html;
 use rand::Rng;
 use std::{convert::Infallible, time::Duration};
 use tokio::time::sleep;
 
 async fn index() -> impl Responder {
-    let index_page = r#"
-    <!doctype html><html>
-      <head>
-        <title>Actix + Datastar Example</title>
-        <script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.9/bundles/datastar.js"></script>
-      </head>
-      <body>
-        <h2>Actix + Datastar Example</h2>
-        <div>
-          <span>Single server response: </span>
-          <span id="once" data-on-load="@get('/once')"></span>
-        </div>
-        <div>
-          <span>Continuous server feed: </span>
-          <span id="feed" data-on-load="@get('/feed')"></span>
-        </div>
-      </body>
-    </html>"#;
-    HttpResponse::Ok().body(index_page)
+    let index_page = html! {
+        head {
+            title {
+                "Actix + Datastar Example"
+            }
+            script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.9/bundles/datastar.js" {}
+        }
+        body {
+            h2 {
+                "Actix + Datastar Example"
+            }
+            div #count-down data-on-load="@get('/count-down')" {}
+        }
+    };
+    HttpResponse::Ok().body(index_page.into_string())
 }
 
 async fn feed() -> impl Responder {
     let event_stream = stream! {
-        let mut next_number = rand::rng().random_range(0..1_000_000);
+        let mut next_number = rand::rng().random_range(0..1_000);
+
+        let fragment = html! {
+            div #count-down {
+                h3 {
+                    "Count Down"
+                }
+                div {
+                    span { "Starting Value: " (next_number) }
+                }
+                div {
+                    span { "Current Value: "}
+                    span data-signals-counter=(next_number) data-text="$counter" {}
+                }
+            }
+        };
+
+        let event: DatastarEvent = MergeFragments::new(fragment).into();
+        yield Ok::<_, Infallible>(event);
 
         loop {
-            let fragment = html! {
-                span #feed {
-                    (next_number)
-                }
-            };
 
-            let event: DatastarEvent = MergeFragments::new(fragment).into();
-            yield Ok::<_, Infallible>(event);
-            sleep(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(50)).await;
             next_number -= 1;
-
-        }
-    };
-
-    DatastarSSE(event_stream)
-}
-
-async fn once() -> impl Responder {
-    let event_stream = stream! {
-        let next_number = rand::rng().random_range(0..1_000_000);
-
             let fragment = html! {
-                span #once {
-                    (next_number)
-                }
+                "{ counter: " (next_number) " }"
             };
-
-            let event: DatastarEvent = MergeFragments::new(fragment).into();
+            let event: DatastarEvent = MergeSignals::new(fragment).into();
             yield Ok::<_, Infallible>(event);
+
+            if next_number <= 0 {
+                let fragment = html! {
+                    "{ counter: 'Finished!' }"
+                };
+                let event: DatastarEvent = MergeSignals::new(fragment).into();
+                yield Ok::<_, Infallible>(event);
+                break;
+            }
+        }
     };
 
     DatastarSSE(event_stream)
@@ -79,8 +82,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .route("/", web::get().to(index))
-            .route("/feed", web::get().to(feed))
-            .route("/once", web::get().to(once))
+            .route("/count-down", web::get().to(feed))
     })
     .bind((host, port))?
     .run()
